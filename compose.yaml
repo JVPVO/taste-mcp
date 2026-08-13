@@ -8,6 +8,7 @@ services:
     environment:
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
       DATABASE_PATH: /app/data/taste.sqlite
+      MCP_ALLOWED_HOSTS: ${MCP_ALLOWED_HOSTS:-localhost,127.0.0.1}
     volumes:
       - taste-mcp-data:/app/data
     init: true

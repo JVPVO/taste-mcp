@@ -1,14 +1,29 @@
 import { createDeepSeek } from "@ai-sdk/deepseek";
+import { createMcpHonoApp } from "@modelcontextprotocol/hono";
 import { generateText, jsonSchema, Output } from "ai";
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { serveStatic } from "hono/bun";
 import { streamSSE } from "hono/streaming";
 import { mkdirSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import * as v from "valibot";
 import { createItem, listItems, reviewItem, type GithubMetadata, type XMetadata } from "./db";
+import { createTasteMcpHandler } from "./mcp";
 
 const app = new Hono();
+const mcpAllowedHosts = (process.env.MCP_ALLOWED_HOSTS || "localhost,127.0.0.1,[::1]")
+  .split(",")
+  .map((host) => host.trim())
+  .filter(Boolean);
+const mcpApp = createMcpHonoApp({
+  host: "0.0.0.0",
+  allowedHosts: mcpAllowedHosts,
+  allowedOrigins: mcpAllowedHosts,
+});
+const mcpHandler = createTasteMcpHandler(listItems);
+
+mcpApp.all("/", (c: Context) => mcpHandler.fetch(c.req.raw, { parsedBody: c.get("parsedBody") }));
+app.route("/mcp", mcpApp);
 
 const defaultCategories = [
   "skill",
@@ -212,7 +227,10 @@ app.get("/api/config", (c) =>
 
 app.get("/api/items", (c) => c.json({ items: listItems() }));
 
-app.get("/api/health", (c) => c.json({ status: "ok" }));
+app.get("/api/health", (c) => c.json({
+  status: "ok",
+  mcp: { endpoint: "/mcp", protocolVersion: "2026-07-28", stateless: true },
+}));
 
 app.patch("/api/items/:id/review", async (c) => {
   const id = Number(c.req.param("id"));
