@@ -1,0 +1,33 @@
+{
+  "name": "taste-mcp",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -k -n api,web -c green,cyan \"bun --hot server/index.ts\" \"vite\"",
+    "build": "tsc -b && vite build",
+    "start": "bun server/index.ts",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@ai-sdk/deepseek": "latest",
+    "@fontsource/geist": "^5.3.0",
+    "@phosphor-icons/react": "latest",
+    "@vitejs/plugin-react": "latest",
+    "ai": "latest",
+    "hono": "latest",
+    "motion": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "valibot": "latest"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "concurrently": "latest",
+    "playwright": "^1.62.1",
+    "typescript": "latest",
+    "vite": "latest"
+  }
+}
