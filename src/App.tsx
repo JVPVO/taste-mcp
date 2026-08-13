@@ -19,6 +19,7 @@ import {
   SidebarSimple,
   Sparkle,
   Sun,
+  Trash,
   XLogo,
   X,
 } from "@phosphor-icons/react";
@@ -268,6 +269,9 @@ export function App() {
   const [reviewProd, setReviewProd] = useState<Item["prod"]>("Não revisado");
   const [reviewFavorability, setReviewFavorability] = useState<Item["favorability"]>("Não revisado");
   const [savingReview, setSavingReview] = useState(false);
+  const [deletingItem, setDeletingItem] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [itemActionError, setItemActionError] = useState<string | null>(null);
   const [theme, setTheme] = useState<"light" | "dark">(() => {
     const saved = localStorage.getItem("commonplace-theme");
     if (saved === "light" || saved === "dark") return saved;
@@ -379,6 +383,8 @@ export function App() {
     setSelectedItem(item);
     setReviewProd(item.prod);
     setReviewFavorability(item.favorability);
+    setConfirmDelete(false);
+    setItemActionError(null);
     setModal("review");
   }
 
@@ -397,8 +403,37 @@ export function App() {
       setItems((current) => current.map((item) => item.id === data.item.id ? data.item : item));
       setModal(null);
       setSelectedItem(null);
+    } catch (caught) {
+      setItemActionError(caught instanceof Error ? caught.message : "Não foi possível salvar a revisão.");
     } finally {
       setSavingReview(false);
+    }
+  }
+
+  async function removeSelectedItem() {
+    if (!selectedItem) return;
+    if (!confirmDelete) {
+      setConfirmDelete(true);
+      setItemActionError(null);
+      return;
+    }
+
+    setDeletingItem(true);
+    setItemActionError(null);
+    try {
+      const response = await fetch(`/api/items/${selectedItem.id}`, { method: "DELETE" });
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        throw new Error(data?.error || "Não foi possível remover o bookmark.");
+      }
+      setItems((current) => current.filter((item) => item.id !== selectedItem.id));
+      setModal(null);
+      setSelectedItem(null);
+      setConfirmDelete(false);
+    } catch (caught) {
+      setItemActionError(caught instanceof Error ? caught.message : "Não foi possível remover o bookmark.");
+    } finally {
+      setDeletingItem(false);
     }
   }
 
@@ -496,7 +531,7 @@ export function App() {
 
       <AnimatePresence initial={false}>
         {modal && (
-          <motion.div className="modal-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={() => !running && !savingReview && setModal(null)}>
+          <motion.div className="modal-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={() => !running && !savingReview && !deletingItem && setModal(null)}>
             <motion.div className="modal" initial={{ opacity: 0, y: 12, scale: 0.98, filter: "blur(4px)" }} animate={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }} exit={{ opacity: 0, y: 8, scale: 0.99, filter: "blur(3px)" }} transition={{ duration: 0.22, ease: [0.2, 0, 0, 1] }} onMouseDown={(event) => event.stopPropagation()}>
               <div className="modal-header">
                 <div className="modal-icon">{modal === "add" ? <LinkSimple /> : modal === "settings" ? <Code /> : <Checks />}</div>
@@ -504,7 +539,7 @@ export function App() {
                   <h2>{modal === "add" ? "Adicionar referência" : modal === "settings" ? "Conectar DeepSeek" : `Revisar ${selectedItem?.title || "item"}`}</h2>
                   <p>{modal === "add" ? "A IA prepara o rascunho; você decide se confia." : modal === "settings" ? "A chave fica apenas na memória do servidor nesta sessão." : "Esses sinais são humanos e serão usados pelos seus agentes."}</p>
                 </div>
-                <button className="icon-button" disabled={running || savingReview} onClick={() => setModal(null)} aria-label="Fechar"><X /></button>
+                <button className="icon-button" disabled={running || savingReview || deletingItem} onClick={() => setModal(null)} aria-label="Fechar"><X /></button>
               </div>
 
               {modal === "add" ? (
@@ -542,7 +577,19 @@ export function App() {
                   </fieldset>
 
                   <div className="review-notice"><Sparkle weight="fill" /><span>A IA não pode alterar essas duas decisões.</span></div>
-                  <div className="modal-actions"><button type="button" className="ghost-button" disabled={savingReview} onClick={() => setModal(null)}>Agora não</button><button className="primary-button" disabled={savingReview || reviewProd === "Não revisado" || reviewFavorability === "Não revisado"}>{savingReview ? <><CircleNotch className="spin" />Salvando</> : <>Salvar revisão<Check /></>}</button></div>
+                  <AnimatePresence initial={false}>
+                    {(confirmDelete || itemActionError) && (
+                      <motion.p className={itemActionError ? "action-feedback error" : "action-feedback"} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} role={itemActionError ? "alert" : "status"}>
+                        {itemActionError || "Esta remoção é permanente e também apaga qualquer mídia local associada."}
+                      </motion.p>
+                    )}
+                  </AnimatePresence>
+                  <div className="modal-actions split">
+                    <button type="button" className={confirmDelete ? "danger-button confirming" : "danger-button"} disabled={savingReview || deletingItem} onClick={removeSelectedItem}>
+                      {deletingItem ? <><CircleNotch className="spin" />Removendo</> : <><Trash />{confirmDelete ? "Confirmar remoção" : "Remover bookmark"}</>}
+                    </button>
+                    <div className="action-group"><button type="button" className="ghost-button" disabled={savingReview || deletingItem} onClick={() => setModal(null)}>Agora não</button><button className="primary-button" disabled={savingReview || deletingItem || reviewProd === "Não revisado" || reviewFavorability === "Não revisado"}>{savingReview ? <><CircleNotch className="spin" />Salvando</> : <>Salvar revisão<Check /></>}</button></div>
+                  </div>
                 </form>
               ) : null}
             </motion.div>
