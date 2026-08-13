@@ -5,9 +5,10 @@ import { Hono, type Context } from "hono";
 import { serveStatic } from "hono/bun";
 import { streamSSE } from "hono/streaming";
 import { mkdirSync } from "node:fs";
+import { unlink } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import * as v from "valibot";
-import { createItem, listItems, reviewItem, type GithubMetadata, type XMetadata } from "./db";
+import { createItem, deleteItem, listItems, reviewItem, type GithubMetadata, type XMetadata } from "./db";
 import { createTasteMcpHandler } from "./mcp";
 
 const app = new Hono();
@@ -239,6 +240,30 @@ app.patch("/api/items/:id/review", async (c) => {
   const item = reviewItem(id, parsed.output.prod, parsed.output.favorability);
   if (!item) return c.json({ error: "Item não encontrado." }, 404);
   return c.json({ item });
+});
+
+app.delete("/api/items/:id", async (c) => {
+  const id = Number(c.req.param("id"));
+  if (!Number.isInteger(id) || id < 1) return c.json({ error: "Bookmark inválido." }, 400);
+
+  const item = deleteItem(id);
+  if (!item) return c.json({ error: "Bookmark não encontrado." }, 404);
+
+  const localMediaUrl = item.sourceMetadata?.provider === "x" ? item.sourceMetadata.localMediaUrl : null;
+  if (localMediaUrl) {
+    const filename = basename(localMediaUrl);
+    if (/^x-\d+\.(?:jpg|png|webp)$/.test(filename)) {
+      try {
+        await unlink(join(mediaDirectory, filename));
+      } catch (error) {
+        if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) {
+          console.error(`Não foi possível remover a mídia local de ${item.title}:`, error);
+        }
+      }
+    }
+  }
+
+  return c.json({ deleted: true, id: item.id });
 });
 
 app.post("/api/config", async (c) => {

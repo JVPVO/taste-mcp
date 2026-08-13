@@ -68,6 +68,12 @@ db.run(`
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   ) STRICT;
 `);
+db.run(`
+  CREATE TABLE IF NOT EXISTS app_meta (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  ) STRICT;
+`);
 const itemColumns = db.query<{ name: string }, []>("PRAGMA table_info(items)").all();
 if (!itemColumns.some((column) => column.name === "source_metadata")) {
   db.run("ALTER TABLE items ADD COLUMN source_metadata TEXT;");
@@ -102,6 +108,12 @@ const updateReview = db.query(`
   UPDATE items
   SET status = 'reviewed', prod = $prod, favorability = $favorability
   WHERE id = $id
+`);
+
+const deleteById = db.query<Row, [number]>(`
+  DELETE FROM items
+  WHERE id = ?1
+  RETURNING id, title, url, description, image_url, categories, tags, kind, status, prod, favorability, source_metadata
 `);
 
 function fromRow(row: Row): StoredItem {
@@ -148,6 +160,11 @@ export function reviewItem(id: number, prod: StoredItem["prod"], favorability: S
   return row ? fromRow(row) : null;
 }
 
+export function deleteItem(id: number) {
+  const row = deleteById.get(id);
+  return row ? fromRow(row) : null;
+}
+
 const seeds: Array<Omit<StoredItem, "id">> = [
   { title: "shadcn/ui", url: "https://ui.shadcn.com", description: "Componentes acessíveis que você copia para o projeto e adapta sem depender de uma biblioteca fechada.", imageUrl: "https://ui.shadcn.com/og?title=The%20Foundation%20for%20your%20Design%20System", categories: ["component", "design", "frontend"], tags: ["react", "tailwind"], kind: "component", status: "reviewed", prod: "Pronto", favorability: "Recomendado", sourceMetadata: null },
   { title: "Hono", url: "https://hono.dev", description: "Framework web pequeno e rápido que funciona em Workers, Bun, Node e outros runtimes.", imageUrl: "https://hono.dev/images/hono-title.png", categories: ["framework", "backend", "api"], tags: ["typescript", "edge"], kind: "framework", status: "reviewed", prod: "Pronto", favorability: "Recomendado", sourceMetadata: null },
@@ -155,6 +172,12 @@ const seeds: Array<Omit<StoredItem, "id">> = [
   { title: "Valibot", url: "https://valibot.dev", description: "Schemas modulares e type-safe para validar dados em runtime com bundle pequeno.", imageUrl: "https://valibot.dev/og/index.png", categories: ["tool", "backend", "frontend"], tags: ["validation", "typescript"], kind: "tool", status: "reviewed", prod: "Pronto", favorability: "Recomendado", sourceMetadata: null },
 ];
 
-if ((db.query<{ count: number }, []>("SELECT COUNT(*) AS count FROM items").get()?.count ?? 0) === 0) {
-  db.transaction(() => seeds.forEach(createItem))();
+const initialSeedCompleted = db.query<{ value: string }, []>("SELECT value FROM app_meta WHERE key = 'initial_seed_completed'").get();
+if (!initialSeedCompleted) {
+  db.transaction(() => {
+    if ((db.query<{ count: number }, []>("SELECT COUNT(*) AS count FROM items").get()?.count ?? 0) === 0) {
+      seeds.forEach(createItem);
+    }
+    db.run("INSERT INTO app_meta (key, value) VALUES ('initial_seed_completed', 'true')");
+  })();
 }
