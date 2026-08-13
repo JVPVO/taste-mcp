@@ -6,6 +6,7 @@ So it's your fault now when things go wrong.
 
 ![Taste library interface](screenshots/commonplace-dark.png)
 
+--AI SLOP BELOW--
 ## How it works
 
 Taste MCP includes a web interface for collecting, reviewing, and organizing development resources. When a bookmark is added, its content is fetched and passed to an LLM, which analyzes the resource and produces a concise summary, categories, and tags.
