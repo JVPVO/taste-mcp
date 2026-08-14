@@ -1,4 +1,4 @@
-# ai coding agents don't have taste. you do (maybe).
+# ai coding agents don't have taste.
 
 A basic, stateless MCP that agents call when making decisions, backed by your curated development bookmarks.
 
